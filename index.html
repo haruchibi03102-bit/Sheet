@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>プロフェッショナル給料管理アプリ</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome CDN -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen pb-20">
+
+    <!-- プライベートモード警告バナー -->
+    <div id="private-warning" class="hidden bg-amber-500 text-white text-xs px-4 py-2 text-center font-bold">
+        <i class="fa-solid fa-triangle-exclamation"></i> プライベートブラウジング等の制限環境です。データ消失を防ぐため定期的にバックアップを保存してください。
+    </div>
+
+    <!-- ヘッダー -->
+    <header class="bg-indigo-600 text-white shadow-md sticky top-0 z-50">
+        <div class="max-w-md mx-auto px-4 py-3 flex justify-between items-center">
+            <h1 class="text-lg font-bold flex items-center gap-2">
+                <i class="fa-solid fa-wallet"></i> 給料管理プロ <span class="text-[10px] bg-indigo-500 px-1.5 py-0.5 rounded text-indigo-100 font-mono">v2.0</span>
+            </h1>
+            <div class="flex items-center gap-2">
+                <button onclick="app.openBackupModal()" class="bg-indigo-700 hover:bg-indigo-800 text-xs px-2.5 py-1.5 rounded-lg font-medium transition flex items-center gap-1">
+                    <i class="fa-solid fa-shield-halved"></i> バックアップ
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- メインコンテンツ -->
+    <main class="max-w-md mx-auto px-4 py-4 space-y-4">
+
+        <!-- 月別ナビゲーション＆サマリー -->
+        <section class="bg-white rounded-2xl p-4 shadow-sm border border-slate-100">
+            <div class="flex justify-between items-center mb-3">
+                <button onclick="app.changeMonth(-1)" class="p-2 text-slate-600 hover:bg-slate-100 rounded-full transition">
+                    <i class="fa-solid fa-chevron-left"></i>
+                </button>
+                <h2 id="current-month-label" class="text-base font-bold text-slate-700">2026年 10月</h2>
+                <button onclick="app.changeMonth(1)" class="p-2 text-slate-600 hover:bg-slate-100 rounded-full transition">
+                    <i class="fa-solid fa-chevron-right"></i>
+                </button>
+            </div>
+
+            <!-- 月間集計カード -->
+            <div class="grid grid-cols-2 gap-2 mb-3">
+                <div class="bg-indigo-50 rounded-xl p-3 border border-indigo-100">
+                    <span class="text-xs text-indigo-600 font-semibold block">今月総支給額</span>
+                    <span id="monthly-total" class="text-xl font-extrabold text-indigo-700">¥0</span>
+                </div>
+                <div class="bg-emerald-50 rounded-xl p-3 border border-emerald-100">
+                    <span class="text-xs text-emerald-600 font-semibold block">塾 勤務日数 / コマ数</span>
+                    <span id="monthly-juku-stats" class="text-sm font-bold text-emerald-700 mt-1 block">0日 / 0コマ</span>
+                </div>
+            </div>
+
+            <!-- 詳細内訳 -->
+            <div class="text-xs text-slate-500 flex justify-between px-1">
+                <span>塾給料: <strong id="monthly-juku-yen" class="text-slate-700">¥0</strong></span>
+                <span>タイミー: <strong id="monthly-timee-yen" class="text-slate-700">¥0</strong></span>
+                <span>臨時: <strong id="monthly-other-yen" class="text-slate-700">¥0</strong></span>
+            </div>
+        </section>
+
+        <!-- カレンダービュー -->
+        <section class="bg-white rounded-2xl p-4 shadow-sm border border-slate-100">
+            <!-- 曜日ヘッダー (月曜始まり) -->
+            <div class="grid grid-cols-7 text-center text-xs font-bold text-slate-400 mb-2">
+                <span class="text-rose-500">月</span>
+                <span>火</span>
+                <span>水</span>
+                <span>木</span>
+                <span>金</span>
+                <span>土</span>
+                <span class="text-indigo-500">日</span>
+            </div>
+            <!-- カレンダーの日付グリッド -->
+            <div id="calendar-grid" class="grid grid-cols-7 gap-1">
+                <!-- JSで動的生成 -->
+            </div>
+        </section>
+
+        <!-- Excel用CSV出力・インポート機能 -->
+        <section class="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex gap-2">
+            <button onclick="app.exportCSV()" class="flex-1 bg-slate-800 hover:bg-slate-900 text-white text-xs py-2.5 rounded-xl font-medium transition flex items-center justify-center gap-1.5">
+                <i class="fa-solid fa-file-excel text-emerald-400"></i> CSV出力
+            </button>
+            <label class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs py-2.5 rounded-xl font-medium transition flex items-center justify-center gap-1.5 cursor-pointer">
+                <i class="fa-solid fa-file-arrow-up text-indigo-600"></i> CSV読込
+                <input type="file" accept=".csv" onchange="app.importCSV(event)" class="hidden">
+            </label>
+        </section>
+
+    </main>
+
+    <!-- 日付編集モーダル -->
+    <div id="edit-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <div class="bg-white w-full max-w-md rounded-t-3xl sm:rounded-2xl p-5 shadow-xl max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center mb-4 pb-2 border-b border-slate-100">
+                <h3 id="modal-date-title" class="text-base font-bold text-slate-800">2026年10月28日 (水)</h3>
+                <button onclick="app.closeModal()" class="p-2 text-slate-400 hover:text-slate-600 rounded-full">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <!-- 入力フォーム -->
+            <form id="daily-form" onsubmit="app.saveDaily(event)" class="space-y-4">
+                <input type="hidden" id="form-date-key">
+
+                <!-- 塾バイトセクション -->
+                <div class="bg-emerald-50/50 p-3.5 rounded-xl border border-emerald-100 space-y-3">
+                    <h4 class="text-xs font-bold text-emerald-800 uppercase tracking-wider flex items-center gap-1.5">
+                        <i class="fa-solid fa-chalkboard-user"></i> 塾バイト
+                    </h4>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">指導コマ数 (1コマ=1950円)</label>
+                        <select id="juku-classes" class="w-full bg-white border border-slate-200 rounded-lg p-2 text-sm font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                            <option value="0">0コマ (勤務なし)</option>
+                            <option value="1">1コマ (1,950円 + 事務10分)</option>
+                            <option value="2">2コマ (3,900円 + 事務15分)</option>
+                            <option value="3">3コマ (5,850円 + 事務20分)</option>
+                            <option value="4">4コマ (7,800円 + 事務30分)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">特殊事務給・自習室・文字監督など (分)</label>
+                        <input type="number" id="juku-extra-min" min="0" max="600" step="1" placeholder="例: 30" class="w-full bg-white border border-slate-200 rounded-lg p-2 text-sm font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                        <span class="text-[10px] text-slate-400 mt-0.5 block">大阪府最低賃金 (1,231円/h) で自動計算・切り捨て</span>
+                    </div>
+                </div>
+
+                <!-- タイミーセクション -->
+                <div class="bg-indigo-50/50 p-3.5 rounded-xl border border-indigo-100 space-y-3">
+                    <h4 class="text-xs font-bold text-indigo-800 uppercase tracking-wider flex items-center gap-1.5">
+                        <i class="fa-solid fa-clock"></i> タイミー
+                    </h4>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">給与額 (円)</label>
+                        <input type="number" id="timee-yen" min="0" step="1" placeholder="例: 5885" class="w-full bg-white border border-slate-200 rounded-lg p-2 text-sm font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                    </div>
+                </div>
+
+                <!-- 臨時収入セクション -->
+                <div class="bg-amber-50/50 p-3.5 rounded-xl border border-amber-100 space-y-3">
+                    <h4 class="text-xs font-bold text-amber-800 uppercase tracking-wider flex items-center gap-1.5">
+                        <i class="fa-solid fa-gift"></i> 臨時収入・その他
+                    </h4>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">金額 (円)</label>
+                        <input type="number" id="other-yen" min="0" step="1" placeholder="例: 1000" class="w-full bg-white border border-slate-200 rounded-lg p-2 text-sm font-medium focus:ring-2 focus:ring-amber-500 focus:outline-none">
+                    </div>
+                </div>
+
+                <!-- 保存ボタン -->
+                <div class="pt-2">
+                    <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl shadow-md transition flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-check"></i> この内容で保存する
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 4層防衛バックアップ管理モーダル -->
+    <div id="backup-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-md rounded-2xl p-5 shadow-xl space-y-4">
+            <div class="flex justify-between items-center pb-2 border-b border-slate-100">
+                <h3 class="text-base font-bold text-slate-800"><i class="fa-solid fa-shield-halved text-indigo-600"></i> 4層防衛バックアップ管理</h3>
+                <button onclick="app.closeBackupModal()" class="p-2 text-slate-400 hover:text-slate-600 rounded-full">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            <p class="text-xs text-slate-500">データ消失を防ぐため、JSONファイル保存、またはスマホの共有機能（LINEやメール等への送信）を活用してください。</p>
+            
+            <div class="space-y-2">
+                <button onclick="app.downloadJSONBackup()" class="w-full bg-slate-800 hover:bg-slate-900 text-white text-xs py-3 rounded-xl font-medium transition flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-download"></i> JSONバックアップファイルを保存
+                </button>
+                <label class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs py-3 rounded-xl font-medium transition flex items-center justify-center gap-2 cursor-pointer">
+                    <i class="fa-solid fa-upload"></i> JSONバックアップから復元
+                    <input type="file" accept=".json" onchange="app.importJSONBackup(event)" class="hidden">
+                </label>
+                <button onclick="app.shareBackupText()" class="w-full bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs py-3 rounded-xl font-medium transition flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-share-nodes"></i> LINE・メモ等へ文字列で退避（共有）
+                </button>
+            </div>
+
+            <div class="pt-2 border-t border-slate-100">
+                <label class="block text-xs font-medium text-slate-600 mb-1">バックアップ文字列（コピー用・復元用）</label>
+                <textarea id="backup-text-area" class="w-full h-16 bg-slate-50 border border-slate-200 rounded-lg p-2 text-[10px] font-mono text-slate-600 select-all" placeholder="ここにバックアップ文字列を貼り付けて復元も可能"></textarea>
+                <button onclick="app.restoreFromTextArea()" class="mt-1 w-full bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs py-2 rounded-lg font-medium transition">
+                    このテキストからデータを復元する
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- コアアプリケーションロジック -->
+    <script>
+        /**
+         * @fileoverview プロフェッショナル給料管理アプリ・究極堅牢エンジン
+         * 特徴: 4層防衛（冗長LocalStorage, 破損時自動リカバリ, スキーママイグレーション, Web Share API退避）
+         *       厳格な切り捨て演算子、月曜始まりカレンダー、エクセル完全同期CSV対応。
+         */
+        class ProfessionalSalaryManager {
+            constructor() {
+                this.today = new Date();
+                this.currentYear = this.today.getFullYear();
+                this.currentMonth = this.today.getMonth() + 1;
+                this.storageKey = 'pro_salary_manager_data_v2';
+                this.backupKey = 'pro_salary_manager_data_v2_backup';
+                this.corruptedKey = 'pro_salary_manager_corrupted_emergency';
+                this.minWage = 1231; // 大阪府最低賃金 円/h
+                this.jukuClassPay = 1950; // 円/コマ
+                
+                this.checkEnvironment();
+                this.data = this.loadDataWithFailSafe();
+                this.init();
+            }
+
+            checkEnvironment() {
+                try {
+                    localStorage.setItem('test_storage', '1');
+                    localStorage.removeItem('test_storage');
+                } catch (e) {
+                    document.getElementById('private-warning').classList.remove('hidden');
+                }
+            }
+
+            // フェイルセーフ＆スキーマ自動マイグレーション付きローディング
+            loadDataWithFailSafe() {
+                try {
+                    let raw = localStorage.getItem(this.storageKey);
+                    if (!raw) {
+                        raw = localStorage.getItem(this.backupKey);
+                    }
+                    if (!raw) return {};
+
+                    const parsed = JSON.parse(raw);
+                    
+                    // スキーマ構造の正当性・バージョンチェック
+                    if (typeof parsed === 'object' && parsed !== null) {
+                        // 新構造 (メタデータ付き) の場合
+                        if (parsed.version && parsed.data) {
+                            return this.migrateSchema(parsed.version, parsed.data);
+                        }
+                        // 旧構造 (直接オブジェクト) の場合
+                        return parsed;
+                    }
+                    throw new Error('Invalid data format');
+                } catch (e) {
+                    console.error('Data loading error or corruption detected:', e);
+                    // 破損データを退避
+                    try {
+                        const broken = localStorage.getItem(this.storageKey);
+                        if (broken) localStorage.setItem(this.corruptedKey, broken);
+                    } catch(err) {}
+
+                    alert('保存されていたデータの一部に異常が検出されたため、自動リカバリを実行しました。（旧データは緊急退避されました）');
+                    return {};
+                }
+            }
+
+            migrateSchema(version, data) {
+                // 将来的なスキーマ変更に対応するマイグレーションロジック
+                if (version === 1) {
+                    // v1からv2への移行処理（必要に応じて記述）
+                }
+                return data;
+            }
+
+            saveData() {
+                try {
+                    const payload = {
+                        app: 'ProSalaryManager',
+                        version: 2,
+                        lastModified: new Date().toISOString(),
+                        data: this.data
+                    };
+                    const jsonStr = JSON.stringify(payload);
+                    localStorage.setItem(this.storageKey, jsonStr);
+                    localStorage.setItem(this.backupKey, jsonStr);
+                } catch (e) {
+                    alert('ストレージの保存容量が一杯か、ブラウザの制限により保存できませんでした。');
+                }
+            }
+
+            init() {
+                this.render();
+            }
+
+            changeMonth(direction) {
+                this.currentMonth += direction;
+                if (this.currentMonth > 12) {
+                    this.currentMonth = 1;
+                    this.currentYear++;
+                } else if (this.currentMonth < 1) {
+                    this.currentMonth = 12;
+                    this.currentYear--;
+                }
+                this.render();
+            }
+
+            // 塾バイト事務給計算（厳格な切り捨て）
+            calcJuku(classes, extraMin) {
+                const safeClasses = Math.max(0, Math.min(4, Number(classes) || 0));
+                let jukuYen = safeClasses * this.jukuClassPay;
+                let autoMinutes = 0;
+                if (safeClasses === 1) autoMinutes = 10;
+                else if (safeClasses === 2) autoMinutes = 15;
+                else if (safeClasses === 3) autoMinutes = 20;
+                else if (safeClasses === 4) autoMinutes = 30;
+
+                const safeExtra = Math.max(0, Math.min(600, Number(extraMin) || 0));
+                const totalMinutes = autoMinutes + safeExtra;
+                
+                // 事務給 = Math.floor((1231 / 60) * totalMinutes)
+                const jukuAdminYen = Math.floor((this.minWage / 60) * totalMinutes);
+                const totalJukuYen = jukuYen + jukuAdminYen;
+
+                return {
+                    jukuYen: totalJukuYen,
+                    adminMinutes: totalMinutes,
+                    adminYen: jukuAdminYen,
+                    classes: safeClasses,
+                    extraMin: safeExtra
+                };
+            }
+
+            render() {
+                document.getElementById('current-month-label').textContent = `${this.currentYear}年 ${this.currentMonth}月`;
+
+                const grid = document.getElementById('calendar-grid');
+                grid.innerHTML = '';
+
+                const firstDayObj = new Date(this.currentYear, this.currentMonth - 1, 1);
+                let startDayOfWeek = firstDayObj.getDay() - 1;
+                if (startDayOfWeek === -1) startDayOfWeek = 6;
+
+                const lastDayDate = new Date(this.currentYear, this.currentMonth, 0).getDate();
+
+                let monthlyTotal = 0;
+                let monthlyJukuYen = 0;
+                let monthlyTimeeYen = 0;
+                let monthlyOtherYen = 0;
+                let monthlyJukuDays = 0;
+                let monthlyJukuClasses = 0;
+
+                for (let i = 0; i < startDayOfWeek; i++) {
+                    const emptyCell = document.createElement('div');
+                    emptyCell.className = 'h-20 bg-slate-50/50 rounded-xl opacity-30';
+                    grid.appendChild(emptyCell);
+                }
+
+                for (let day = 1; day <= lastDayDate; day++) {
+                    const monthStr = String(this.currentMonth).padStart(2, '0');
+                    const dayStr = String(day).padStart(2, '0');
+                    const dateKey = `${this.currentYear}-${monthStr}-${dayStr}`;
+                    
+                    const dayData = this.data[dateKey] || { classes: 0, extraMin: 0, timee: 0, other: 0 };
+                    
+                    const jukuRes = this.calcJuku(dayData.classes, dayData.extraMin);
+                    const timee = Math.max(0, Number(dayData.timee) || 0);
+                    const other = Math.max(0, Number(dayData.other) || 0);
+                    const dailyTotal = jukuRes.jukuYen + timee + other;
+
+                    if (jukuRes.classes > 0 || jukuRes.adminMinutes > 0) {
+                        monthlyJukuDays++;
+                        monthlyJukuClasses += jukuRes.classes;
+                    }
+                    monthlyJukuYen += jukuRes.jukuYen;
+                    monthlyTimeeYen += timee;
+                    monthlyOtherYen += other;
+                    monthlyTotal += dailyTotal;
+
+                    const cell = document.createElement('div');
+                    cell.className = `h-20 p-1.5 rounded-xl border flex flex-col justify-between cursor-pointer transition ${
+                        dailyTotal > 0 ? 'bg-indigo-50/30 border-indigo-200 hover:bg-indigo-50' : 'bg-white border-slate-100 hover:bg-slate-50'
+                    }`;
+                    cell.onclick = () => this.openModal(dateKey, dayData);
+
+                    let badgeHtml = '';
+                    if (jukuRes.classes > 0) {
+                        badgeHtml += `<span class="bg-emerald-100 text-emerald-800 text-[9px] px-1 rounded font-bold">塾${jukuRes.classes}コマ</span>`;
+                    }
+                    if (timee > 0) {
+                        badgeHtml += `<span class="bg-indigo-100 text-indigo-800 text-[9px] px-1 rounded font-bold">T</span>`;
+                    }
+                    if (other > 0) {
+                        badgeHtml += `<span class="bg-amber-100 text-amber-800 text-[9px] px-1 rounded font-bold">臨</span>`;
+                    }
+
+                    cell.innerHTML = `
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs font-bold text-slate-700">${day}</span>
+                            <div class="flex gap-0.5">${badgeHtml}</div>
+                        </div>
+                        <div class="text-right">
+                            <span class="text-xs font-extrabold ${dailyTotal > 0 ? 'text-indigo-600' : 'text-slate-300'}">
+                                ${dailyTotal > 0 ? '¥' + dailyTotal.toLocaleString() : '-'}
+                            </span>
+                        </div>
+                    `;
+                    grid.appendChild(cell);
+                }
+
+                document.getElementById('monthly-total').textContent = '¥' + monthlyTotal.toLocaleString();
+                document.getElementById('monthly-juku-stats').textContent = `${monthlyJukuDays}日 / ${monthlyJukuClasses}コマ`;
+                document.getElementById('monthly-juku-yen').textContent = '¥' + monthlyJukuYen.toLocaleString();
+                document.getElementById('monthly-timee-yen').textContent = '¥' + monthlyTimeeYen.toLocaleString();
+                document.getElementById('monthly-other-yen').textContent = '¥' + monthlyOtherYen.toLocaleString();
+            }
+
+            openModal(dateKey, dayData) {
+                document.getElementById('form-date-key').value = dateKey;
+                document.getElementById('modal-date-title').textContent = `${dateKey} の給与入力`;
+                document.getElementById('juku-classes').value = dayData.classes || 0;
+                document.getElementById('juku-extra-min').value = dayData.extraMin || '';
+                document.getElementById('timee-yen').value = dayData.timee || '';
+                document.getElementById('other-yen').value = dayData.other || '';
+
+                document.getElementById('edit-modal').classList.remove('hidden');
+            }
+
+            closeModal() {
+                document.getElementById('edit-modal').classList.add('hidden');
+            }
+
+            saveDaily(event) {
+                event.preventDefault();
+                const dateKey = document.getElementById('form-date-key').value;
+                const classes = Number(document.getElementById('juku-classes').value);
+                const extraMin = Number(document.getElementById('juku-extra-min').value) || 0;
+                const timee = Number(document.getElementById('timee-yen').value) || 0;
+                const other = Number(document.getElementById('other-yen').value) || 0;
+
+                if (classes === 0 && extraMin === 0 && timee === 0 && other === 0) {
+                    delete this.data[dateKey];
+                } else {
+                    this.data[dateKey] = { classes, extraMin, timee, other };
+                }
+
+                this.saveData();
+                this.closeModal();
+                this.render();
+            }
+
+            openBackupModal() {
+                const payload = {
+                    app: 'ProSalaryManager',
+                    version: 2,
+                    lastModified: new Date().toISOString(),
+                    data: this.data
+                };
+                document.getElementById('backup-text-area').value = JSON.stringify(payload);
+                document.getElementById('backup-modal').classList.remove('hidden');
+            }
+
+            closeBackupModal() {
+                document.getElementById('backup-modal').classList.add('hidden');
+            }
+
+            downloadJSONBackup() {
+                const payload = {
+                    app: 'ProSalaryManager',
+                    version: 2,
+                    lastModified: new Date().toISOString(),
+                    data: this.data
+                };
+                const jsonStr = JSON.stringify(payload, null, 2);
+                const blob = new Blob([jsonStr], { type: 'application/json;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const dl = document.createElement('a');
+                dl.setAttribute('href', url);
+                dl.setAttribute('download', `salary_manager_backup_latest.json`);
+                document.body.appendChild(dl);
+                dl.click();
+                dl.remove();
+                URL.revokeObjectURL(url);
+            }
+
+            importJSONBackup(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const parsed = JSON.parse(e.target.result);
+                        let importedData = null;
+                        if (parsed && parsed.data) {
+                            importedData = parsed.data;
+                        } else if (typeof parsed === 'object') {
+                            importedData = parsed;
+                        }
+
+                        if (importedData && confirm("既存のデータがバックアップファイルの内容で上書きされます。よろしいですか？")) {
+                            this.data = importedData;
+                            this.saveData();
+                            this.render();
+                            this.closeBackupModal();
+                            alert('バックアップからの復元に成功しました！');
+                        }
+                    } catch (err) {
+                        alert('無効なJSONファイルです。正しいバックアップファイルを選択してください。');
+                    }
+                };
+                reader.readAsText(file);
+            }
+
+            shareBackupText() {
+                const payload = {
+                    app: 'ProSalaryManager',
+                    version: 2,
+                    lastModified: new Date().toISOString(),
+                    data: this.data
+                };
+                const text = JSON.stringify(payload);
+                if (navigator.share) {
+                    navigator.share({
+                        title: '給料管理アプリ バックアップデータ',
+                        text: text
+                    }).catch(() => {
+                        alert('共有がキャンセルされました。下のテキストエリアからコピーしてください。');
+                    });
+                } else {
+                    navigator.clipboard.writeText(text).then(() => {
+                        alert('バックアップ文字列をクリップボードにコピーしました！LINEやメモに貼り付けて保管してください。');
+                    });
+                }
+            }
+
+            restoreFromTextArea() {
+                const text = document.getElementById('backup-text-area').value.trim();
+                if (!text) {
+                    alert('復元用のテキストが入力されていません。');
+                    return;
+                }
+                try {
+                    const parsed = JSON.parse(text);
+                    let importedData = null;
+                    if (parsed && parsed.data) {
+                        importedData = parsed.data;
+                    } else if (typeof parsed === 'object') {
+                        importedData = parsed;
+                    }
+
+                    if (importedData && confirm("入力されたテキストのデータで上書き復元します。よろしいですか？")) {
+                        this.data = importedData;
+                        this.saveData();
+                        this.render();
+                        this.closeBackupModal();
+                        alert('テキストからの復元に成功しました！');
+                    }
+                } catch(e) {
+                    alert('テキストの形式が正しくありません。');
+                }
+            }
+
+            exportCSV() {
+                let csv = '\uFEFF日付,曜日,事務給時間(分),事務給(円),指導コマ,塾給料(円),タイミー(円),臨時収入(円),日当合計(円)\n';
+                const daysOfWeek = ['日', '月', '火', '水', '木', '金', '土'];
+
+                const sortedKeys = Object.keys(this.data).sort();
+                sortedKeys.forEach(dateKey => {
+                    const d = new Date(dateKey);
+                    const weekStr = daysOfWeek[d.getDay()];
+                    const item = this.data[dateKey];
+                    const jukuRes = this.calcJuku(item.classes, item.extraMin);
+                    const timee = Math.max(0, Number(item.timee) || 0);
+                    const other = Math.max(0, Number(item.other) || 0);
+                    const dailyTotal = jukuRes.jukuYen + timee + other;
+
+                    csv += `${dateKey},${weekStr},${jukuRes.adminMinutes},${jukuRes.adminYen},${jukuRes.classes},${jukuRes.jukuYen},${timee},${other},${dailyTotal}\n`;
+                });
+
+                const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const dl = document.createElement('a');
+                dl.setAttribute('href', url);
+                dl.setAttribute('download', `salary_export_${this.currentYear}_${this.currentMonth}.csv`);
+                document.body.appendChild(dl);
+                dl.click();
+                dl.remove();
+                URL.revokeObjectURL(url);
+            }
+
+            importCSV(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const text = e.target.result;
+                    const lines = text.split('\n');
+                    let count = 0;
+                    for (let i = 1; i < lines.length; i++) {
+                        const line = lines[i].trim();
+                        if (!line) continue;
+                        const cols = line.split(',');
+                        if (cols.length >= 9) {
+                            const dateKey = cols[0];
+                            const totalMin = Number(cols[2]) || 0;
+                            const classes = Number(cols[4]) || 0;
+                            const timee = Number(cols[6]) || 0;
+                            const other = Number(cols[7]) || 0;
+
+                            let autoMin = 0;
+                            if (classes === 1) autoMin = 10;
+                            else if (classes === 2) autoMin = 15;
+                            else if (classes === 3) autoMin = 20;
+                            else if (classes === 4) autoMin = 30;
+                            const extraMin = Math.max(0, totalMin - autoMin);
+
+                            if (classes > 0 || extraMin > 0 || timee > 0 || other > 0) {
+                                this.data[dateKey] = { classes, extraMin, timee, other };
+                                count++;
+                            }
+                        }
+                    }
+                    this.saveData();
+                    this.render();
+                    alert(`${count}日分のデータをCSVからインポートしました。`);
+                };
+                reader.readAsText(file);
+            }
+        }
+
+        const app = new ProfessionalSalaryManager();
+    </script>
+</body>
+</html>
